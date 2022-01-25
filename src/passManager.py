@@ -23,6 +23,9 @@ def addNewPass():
     email = email_entry.get()
     pwd = key_entry.get()
     f.write(f"{website},{email},{pwd}\n")
+    
+def syncOnGoogleDrive():
+    pass
 
 def closeProgram():
     f.close()
@@ -54,7 +57,10 @@ Auto = Button(text = "Auto", width=4, command = generatePass)
 Auto.place(x = 272, y = 240)
 
 add = Button(text = "Add new password", width=15, command = addNewPass)
-add.place(x = 120, y = 280)
+add.place(x = 100, y = 280)
+
+sync = Button(text = "sync ⇅", width=5, command = syncOnGoogleDrive)
+sync.place(x = 265, y = 280)
 
 window.wm_protocol("WM_DELETE_WINDOW", closeProgram)
 
