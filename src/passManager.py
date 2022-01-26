@@ -1,3 +1,4 @@
+import io
 import os
 import os.path
 from tkinter import *
@@ -9,9 +10,12 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaIoBaseDownload
+
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly']
+SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly', 
+          'https://www.googleapis.com/auth/drive']
 
 ROOT_PATH = os.path.dirname(__file__)
 IMG_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Lock.gif'))
@@ -20,6 +24,7 @@ KEY_CSV_PATH = os.path.join(KEY_DIR_PATH, 'keys.csv')
 
 # Google API credentials
 creds = None
+service = None
 
 if not os.path.isdir(KEY_DIR_PATH):
     os.mkdir(KEY_DIR_PATH)
@@ -40,6 +45,7 @@ def addNewPass():
     
 def authorFlow():    
     global creds
+    global service
     
     if os.path.exists('key/author/token.json'):
         creds = Credentials.from_authorized_user_file('key/author/token.json', SCOPES)
@@ -54,15 +60,11 @@ def authorFlow():
         # Save the credentials for the next run
         with open('key/author/token.json', 'w') as token:
             token.write(creds.to_json())
-
-def syncOnGoogleDrive():
-    global creds
     
-    authorFlow()
-    
+    service = build('drive', 'v3', credentials=creds)
+            
+def listFiles():
     try:
-        service = build('drive', 'v3', credentials=creds)
-
         # Call the Drive v3 API
         results = service.files().list(
             pageSize=10, fields="nextPageToken, files(id, name)").execute()
@@ -77,6 +79,26 @@ def syncOnGoogleDrive():
     except HttpError as error:
         # TODO(developer) - Handle errors from drive API.
         print(f'An error occurred: {error}')
+
+def syncOnGoogleDrive():
+    global creds
+    file_id = "1NCtC_jWnHptoyuVsUKQM_B6wL5Jw_iEM"
+    authorFlow()
+    listFiles()
+    request = service.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while done is False:
+        status, done = downloader.next_chunk()
+        print("Download %d%%." % int(status.progress() * 100))
+    
+    print(fh.getvalue())
+    # print(f"\n\ntype is {type(content)}\n\n")
+    # print(fh)
+    # fh.close()
+    
+    
         
         
 def closeProgram():
