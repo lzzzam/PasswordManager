@@ -5,19 +5,24 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly', 
           'https://www.googleapis.com/auth/drive']
 
-TOKEN_PATH          = 'key/author/token.json'
-CREDENTIALS_PATH    = 'key/author/credentials.json'
+TOKEN_PATH          = 'api/token.json'
+CREDENTIALS_PATH    = 'api/credentials.json'
+
+DATABASE_FILE       = 'lucabase.csv'
+DATABASE_DIR        = 'db'
+DATABASE_PATH       = os.path.join(DATABASE_DIR, DATABASE_FILE)
 
 service = None
 database = None
 
 def getCreds():
+    creds = None
     if os.path.exists(TOKEN_PATH):
         creds = Credentials.from_authorized_user_file(TOKEN_PATH, SCOPES)
         
@@ -59,19 +64,41 @@ def updateFile(fileId, media):
     return service.files().update(fileId=fileId, media_body=media).execute()    
 
 def createDatabase():
-    media = MediaFileUpload('key/keys.csv')
-    database = createFile('keys.csv', media)
+    media = MediaFileUpload(DATABASE_PATH)
+    database = createFile(DATABASE_FILE, media)
     return database
 
 def updateDatabase():
-    media = MediaFileUpload('key/keys.csv')
+    media = MediaFileUpload(DATABASE_PATH)
     return updateFile(database["id"], media)
 
+def downloadDatabase():
+    resp = service.files().get_media(fileId=database["id"]).execute()
+    
+    with open(DATABASE_PATH, "w") as db:
+        db.writelines(resp.decode('utf-8'))
+    
+def syncDatabase():
+    """
+    Search for database in Drive. 
+    If it not exists it create a new local database from scratch
+    and stores it into Drive, otherwise download it from Drive
+    """
+    global database
+    database = searchFile(DATABASE_FILE)
+    
+    if(database == None):
+        # create local db
+        with open(DATABASE_PATH, "w") as db:
+            db.close()
+        # store it into Drive   
+        database = createDatabase()
+    else:
+        downloadDatabase()
 
-creds   = getCreds()
-buildGoogleDriveAPIclient(creds)
-database = searchFile("keys.csv")
-print(database["id"])
-updateDatabase()
-#print(createDatabase())
 
+# # Google API credentials
+# creds = getCreds()
+# # Google API client
+# buildGoogleDriveAPIclient(creds)
+# syncDatabase()

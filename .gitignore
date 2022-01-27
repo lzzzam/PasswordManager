@@ -129,3 +129,5 @@ dmypy.json
 .pyre/
 key/keys.csv
 key/author/token.json
+db/lucabase.csv
+api/token.json

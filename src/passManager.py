@@ -2,15 +2,11 @@ import io
 import os
 import os.path
 from tkinter import *
+from tkinter import messagebox
 
 from passGenerator import randPass
-
-from google.auth.transport.requests import Request
-from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from googleapiclient.http import MediaIoBaseDownload
+from googleDriveAPI import getCreds, buildGoogleDriveAPIclient, syncDatabase, updateDatabase
+from googleDriveAPI import DATABASE_FILE, DATABASE_DIR, DATABASE_PATH
 
 
 # If modifying these scopes, delete the file token.json.
@@ -19,17 +15,27 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
 
 ROOT_PATH = os.path.dirname(__file__)
 IMG_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Lock.gif'))
-KEY_DIR_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'key'))
-KEY_CSV_PATH = os.path.join(KEY_DIR_PATH, 'keys.csv')
+IMG_DRIVE_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive.gif'))
+IMG_DRIVE_OK_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive_Ok.gif'))
+IMG_DRIVE_NOT_OK_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive_NotOk.gif'))
 
-# Google API credentials
-creds = None
-service = None
+if not os.path.isdir(DATABASE_DIR):
+    os.mkdir(DATABASE_DIR)
 
-if not os.path.isdir(KEY_DIR_PATH):
-    os.mkdir(KEY_DIR_PATH)
+def syncToGoogleDrive():
     
-f = open(KEY_CSV_PATH, "a+")
+    if( messagebox.askyesno("Sync with Drive", "Syncronize with Google Drive?") ):
+        try:
+            # Google API credentials
+            creds = getCreds()
+            # Google API client
+            buildGoogleDriveAPIclient(creds)
+            syncDatabase()
+            sync.config(text="sync ⇅")
+            canvas.itemconfig(drive_img, image = drive_ok)
+        except:
+            canvas.itemconfig(drive_img, image = drive_notok)
+            messagebox.showinfo("Error: Drive", "Error connecting to Google Drive!")
 
 def generatePass():
     pwd = randPass(10)
@@ -41,79 +47,32 @@ def addNewPass():
     website = link_entry.get()
     email = email_entry.get()
     pwd = key_entry.get()
-    f.write(f"{website},{email},{pwd}\n")
     
-def authorFlow():    
-    global creds
-    global service
+    if(website == "" or email == "" or pwd == ""):
+        messagebox.showinfo("Error: Missing values", "Please, fill all the fields and retry!!")
+    else:   
+        with open(DATABASE_PATH, "a+") as f:
+            f.write(f"{website},{email},{pwd}\n")
+        updateDatabase()
     
-    if os.path.exists('key/author/token.json'):
-        creds = Credentials.from_authorized_user_file('key/author/token.json', SCOPES)
-    # If there are no (valid) credentials available, let the user log in.
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'key/author/credentials.json', SCOPES)
-            creds = flow.run_local_server(port=0)
-        # Save the credentials for the next run
-        with open('key/author/token.json', 'w') as token:
-            token.write(creds.to_json())
-    
-    service = build('drive', 'v3', credentials=creds)
-            
-def listFiles():
-    try:
-        # Call the Drive v3 API
-        results = service.files().list(
-            pageSize=10, fields="nextPageToken, files(id, name)").execute()
-        items = results.get('files', [])
-
-        if not items:
-            print('No files found.')
-            return
-        print('Files:')
-        for item in items:
-            print(u'{0} ({1})'.format(item['name'], item['id']))
-    except HttpError as error:
-        # TODO(developer) - Handle errors from drive API.
-        print(f'An error occurred: {error}')
-
-def syncOnGoogleDrive():
-    global creds
-    file_id = "1NCtC_jWnHptoyuVsUKQM_B6wL5Jw_iEM"
-    authorFlow()
-    listFiles()
-    request = service.files().get_media(fileId=file_id)
-    fh = io.BytesIO()
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while done is False:
-        status, done = downloader.next_chunk()
-        print("Download %d%%." % int(status.progress() * 100))
-    
-    print(fh.getvalue())
-    # print(f"\n\ntype is {type(content)}\n\n")
-    # print(fh)
-    # fh.close()
-    
-    
-        
-        
+         
 def closeProgram():
-    f.close()
     window.destroy()
 
 window = Tk()
-window.config(width = 400, height = 330)
+window.config(width = 400, height = 350)
 window.title("Password Manager")
 
-canvas = Canvas(window,width = 400, height = 300)
+canvas = Canvas(window,width = 400, height = 320)
 canvas.place(x=0, y=0)
 
 logo = PhotoImage(file = IMG_PATH)
 lock_img =canvas.create_image(200,90,image = logo)
+
+drive = PhotoImage(file = IMG_DRIVE_PATH)
+drive_ok = PhotoImage(file = IMG_DRIVE_OK_PATH)
+drive_notok = PhotoImage(file = IMG_DRIVE_NOT_OK_PATH)
+drive_img =canvas.create_image(70,290,image = drive)
 
 canvas.create_text(70,185,text="e-mail", font=("Courier", 14))
 email_entry = Entry(window, width=25)
@@ -133,7 +92,7 @@ Auto.place(x = 272, y = 240)
 add = Button(text = "Add new password", width=15, command = addNewPass)
 add.place(x = 100, y = 280)
 
-sync = Button(text = "sync ⇅", width=5, command = syncOnGoogleDrive)
+sync = Button(text = "sync", width=5, command = syncToGoogleDrive)
 sync.place(x = 265, y = 280)
 
 window.wm_protocol("WM_DELETE_WINDOW", closeProgram)
