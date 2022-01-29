@@ -3,6 +3,7 @@ import os
 import os.path
 from tkinter import *
 from tkinter import messagebox
+import json
 
 from passGenerator import randPass
 from googleDriveAPI import getCreds, buildGoogleDriveAPIclient, syncDatabase, updateDatabase
@@ -19,29 +20,44 @@ IMG_DRIVE_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive.gi
 IMG_DRIVE_OK_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive_Ok.gif'))
 IMG_DRIVE_NOT_OK_PATH = os.path.realpath(os.path.join(ROOT_PATH, '..', 'img', 'Drive_NotOk.gif'))
 
+# True when syncronization is established
+SYNC_WITH_GOOGLE_DRIVE = False
+
 if not os.path.isdir(DATABASE_DIR):
     os.mkdir(DATABASE_DIR)
 
 def syncToGoogleDrive():
     
-    if( messagebox.askyesno("Sync with Drive", "Syncronize with Google Drive?") ):
-        try:
-            # Google API credentials
-            creds = getCreds()
-            # Google API client
-            buildGoogleDriveAPIclient(creds)
-            syncDatabase()
-            sync.config(text="sync ⇅")
-            canvas.itemconfig(drive_img, image = drive_ok)
-        except:
-            canvas.itemconfig(drive_img, image = drive_notok)
-            messagebox.showinfo("Error: Drive", "Error connecting to Google Drive!")
+    global SYNC_WITH_GOOGLE_DRIVE
+    
+    if(SYNC_WITH_GOOGLE_DRIVE == False):
+        if(messagebox.askyesno("Sync with Drive", 
+                               "Syncronize with Google Drive?\nATTENTION: Some of your local password could be lost"
+                               )):
+
+            try:
+                # Google API credentials
+                creds = getCreds()
+                # Google API client
+                buildGoogleDriveAPIclient(creds)
+                syncDatabase()
+                SYNC_WITH_GOOGLE_DRIVE = True
+                sync.config(text="sync ⇅")
+                canvas.itemconfig(drive_img, image = drive_ok)
+            except:
+                canvas.itemconfig(drive_img, image = drive_notok)
+                messagebox.showinfo("Error: Drive", "Error connecting to Google Drive!")
+    else:
+        
+        canvas.itemconfig(drive_img, image = drive)
+        sync.config(text="sync")
+        SYNC_WITH_GOOGLE_DRIVE = False
+                    
 
 def generatePass():
     pwd = randPass(10)
     key_entry.delete(0,"end")
     key_entry.insert(0, pwd)
-    pass
 
 def addNewPass():
     website = link_entry.get()
@@ -51,9 +67,23 @@ def addNewPass():
     if(website == "" or email == "" or pwd == ""):
         messagebox.showinfo("Error: Missing values", "Please, fill all the fields and retry!!")
     else:   
-        with open(DATABASE_PATH, "a+") as f:
-            f.write(f"{website},{email},{pwd}\n")
-        updateDatabase()
+        # load database from .json
+        db = None
+        with open(DATABASE_PATH, "r+") as fh:
+            try:
+                db = json.load(fh)
+            except:
+                db = {}
+        
+        # modify and update .json file
+        with open(DATABASE_PATH, "w") as fh:
+            entry = {website : {"email" : email, "pass": pwd}}
+            db.update(entry)
+            json.dump(db, fh, indent=4)
+        
+        # sync on Google Drive 
+        if(SYNC_WITH_GOOGLE_DRIVE == True):    
+            updateDatabase()
     
          
 def closeProgram():

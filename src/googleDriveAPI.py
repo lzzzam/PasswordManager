@@ -14,7 +14,7 @@ SCOPES = ['https://www.googleapis.com/auth/drive.metadata.readonly',
 TOKEN_PATH          = 'api/token.json'
 CREDENTIALS_PATH    = 'api/credentials.json'
 
-DATABASE_FILE       = 'lucabase.csv'
+DATABASE_FILE       = 'database.json'
 DATABASE_DIR        = 'db'
 DATABASE_PATH       = os.path.join(DATABASE_DIR, DATABASE_FILE)
 
@@ -95,10 +95,3 @@ def syncDatabase():
         database = createDatabase()
     else:
         downloadDatabase()
-
-
-# # Google API credentials
-# creds = getCreds()
-# # Google API client
-# buildGoogleDriveAPIclient(creds)
-# syncDatabase()
